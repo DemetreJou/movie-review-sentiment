@@ -1,9 +1,11 @@
 import os
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, render_template
+from routes import *
 
 app = Flask(__name__, static_folder='../frontend/build')
+app.register_blueprint(routes)
 
-# Serve React App
+# Serve React Apps
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
