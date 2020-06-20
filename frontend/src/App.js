@@ -1,15 +1,18 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
+import {BrowserRouter, Route, Switch} from 'react-router-dom';
+import MeHome from './me/home.js'
+import LandingPage from "./landingPage";
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <p>
-         Side project in progress
-        </p>
-      </header>
+    <div>
+      <BrowserRouter>
+        <Switch>
+          <Route exact path='/' component={LandingPage} />
+          <Route exact path='/me/home' component={MeHome}/>
+        </Switch>
+      </BrowserRouter>
     </div>
   );
 }
