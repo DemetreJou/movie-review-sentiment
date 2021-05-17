@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  backend:
+    build: backend/
+    ports:
+      - "5000:5000"
+  frontend:
+    build: frontend/
+    ports:
+    - "3000:3000"
+    # need to have this here otherwise react-scripts npm start will exit after startup
+    # and will stop the frontend container
+    stdin_open: true

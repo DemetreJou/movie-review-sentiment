@@ -1,22 +1,13 @@
-import os
-from flask import Flask, send_from_directory, render_template
+from flask import Flask
 from routes import *
+import keras
+import os
 
-app = Flask(__name__, static_folder='../frontend/build')
+# this path should probably come through as an environment variable for difference when in docker container vs when local dev
+model = keras.models.load_model(os.path.join("..", "sentiment_analysis", "trained_model"))
+
+app = Flask(__name__)
 app.register_blueprint(routes)
-
-# Serve React Apps
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve(path):
-    if path != "" and os.path.exists(app.static_folder + '/' + path):
-        return send_from_directory(app.static_folder, path)
-    else:
-        return send_from_directory(app.static_folder, 'index.html')
-
-@app.route("/taylor")
-def baby():
-    return "<h1> You're baby !! <3 </h1>"
 
 
 if __name__ == '__main__':
