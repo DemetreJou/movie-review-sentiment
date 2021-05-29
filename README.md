@@ -1,25 +1,18 @@
 # A simple react + flask project
 
-## Dataset
-Download from here 
-https://www.kaggle.com/c/sentiment-analysis-on-movie-reviews/data
-
 ## Setup
-This is run dockerized for easy production deployment(also because I wanted docker practice)
 
-I'm self hosting everything even if heroku is easier to startup on (also because I wanted the practice)
+Install docker, python, react
 
-Everything is dockerized but can be run standalone locally
+backend/requirements.txt is for both backend flask server as well as for /sentiment_analysis 
+- can probably soft link backend/requirements.txt to sentiment_analysis/requirements.txt for ease
 
-Going to run frontend and backend in different containers, use traefik as reverse proxy when deployed, no need for database yet
 
 ## TODO
 Setup different environment to differentiate between dev and deploy environment
 
-Find solution for passing tokenizer from training to web app (probably pickle)
+Convert backend dockerfile to a more lightweight container (build from python instead of ubuntu)
 
-It actually seems like training takes longer when using CUDA, should investigate
+When training model validation accuracy per epoch isn't printing out properly
 
-Try finding an efficient way of including parts-of-speech tags as a way to hopefully improve accuracy
-
-Convert backend dockerfile to a more lightweight container (build from python instead of ubuntu)s
+Include parts of speech tags when training, requirements changing model to functional model instead of sequential
