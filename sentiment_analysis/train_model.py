@@ -1,20 +1,17 @@
-import json
 import os
 import pickle
 import re
 
+import keras
 import pandas as pd
 from bs4 import BeautifulSoup
-from keras.callbacks import EarlyStopping
-from keras.layers import Dense, Dropout, Embedding, LSTM
+from keras.layers import Dense, Embedding, LSTM, Bidirectional
 from keras.models import Sequential
-from keras.optimizers import Adam
 from keras.preprocessing import sequence
-from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.text import one_hot
+from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
-from sklearn.model_selection import train_test_split
-from tensorflow.keras.utils import to_categorical
 from tqdm import tqdm
 
 lemmatizer = WordNetLemmatizer()
@@ -23,6 +20,8 @@ import spacy
 
 nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
 nlp.add_pipe('sentencizer')
+VOCAB_SIZE = 50000
+MAX_LEN = 200
 
 
 def clean_sentence(sentence):
@@ -47,86 +46,73 @@ def clean_sentences(df):
     return reviews
 
 
+def text_cleaning(text):
+    forbidden_words = set(stopwords.words('english'))
+    if text:
+        text = ' '.join(text.split('.'))
+        text = re.sub('\/', ' ', text)
+        text = re.sub(r'\\', ' ', text)
+        text = re.sub(r'((http)\S+)', '', text)
+        text = re.sub(r'\s+', ' ', re.sub('[^A-Za-z]', ' ', text.strip().lower())).strip()
+        text = re.sub(r'\W+', ' ', text.strip().lower()).strip()
+        text = [word for word in text.split() if word not in forbidden_words]
+        return text
+    return []
+
+
+def load_and_process():
+    train_data = pd.read_csv(os.path.join("data", "train.tsv"), sep='\t')
+    test_data = pd.read_csv(os.path.join("data", "test.tsv"), sep='\t')
+
+    train_data = train_data.drop(['PhraseId', 'SentenceId'], axis=1)
+    test_data = test_data.drop(['PhraseId', 'SentenceId'], axis=1)
+    train_data['flag'] = 'TRAIN'
+    test_data['flag'] = 'TEST'
+    total_docs = pd.concat([train_data, test_data], axis=0, ignore_index=True)
+    # total_docs['Phrase'] = total_docs['Phrase'].apply(lambda x: ' '.join(text_cleaning(x)))
+    total_docs['Phrase'] = total_docs['Phrase'].apply(lambda x: ' '.join(clean_sentence(x)))
+    phrases = total_docs['Phrase'].tolist()
+    encoded_phrases = [one_hot(d, VOCAB_SIZE) for d in phrases]
+    total_docs['Phrase'] = encoded_phrases
+    train_data = total_docs[total_docs['flag'] == 'TRAIN']
+    test_data = total_docs[total_docs['flag'] == 'TEST']
+    x_train = train_data['Phrase']
+    y_train = train_data['Sentiment']
+    x_val = test_data['Phrase']
+    y_val = test_data['Sentiment']
+
+    x_train = keras.preprocessing.sequence.pad_sequences(x_train, maxlen=MAX_LEN)
+    x_val = keras.preprocessing.sequence.pad_sequences(x_val, maxlen=MAX_LEN)
+    return x_train, x_val, y_train, y_val
+
+
 if __name__ == "__main__":
     # DISABLES CUDA
     # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-    train = pd.read_csv(os.path.join("data", "data.csv"))
-    train_sentences = clean_sentences(train)
-
-    target = train.Sentiment.values
-    y_target = to_categorical(target)
-    num_classes = y_target.shape[1]
-
-    X_train, X_val, y_train, y_val = train_test_split(train_sentences, y_target, test_size=0.2, stratify=y_target)
-
-    unique_words = set()
-    len_max = 0
-    for sent in tqdm(X_train):
-
-        unique_words.update(sent)
-
-        if (len_max < len(sent)):
-            len_max = len(sent)
-
-    tokenizer = Tokenizer(num_words=len(list(unique_words)))
-    tokenizer.fit_on_texts(list(X_train))
-
-    X_train = tokenizer.texts_to_sequences(X_train)
-    X_val = tokenizer.texts_to_sequences(X_val)
-
-    X_train = sequence.pad_sequences(X_train, maxlen=len_max)
-    X_val = sequence.pad_sequences(X_val, maxlen=len_max)
-
-    early_stopping = EarlyStopping(min_delta=0.001, mode='max', monitor='val_accuracy', patience=2)
-    callback = [early_stopping]
+    x_train, x_val, y_train, y_val = load_and_process()
 
     model = Sequential()
-    model.add(Embedding(len(list(unique_words)), 300, input_length=len_max))
-
-    model.add(LSTM(128, dropout=0.5, recurrent_dropout=0.5, return_sequences=True))
-    model.add(LSTM(64, dropout=0.5, recurrent_dropout=0.5, return_sequences=False))
-
-    # TODO: can flip this flag
-    complicated_model = False
-    if complicated_model:
-        model.add(Dense(100, activation='relu'))
-        model.add(Dropout(0.5))
-        model.add(Dense(num_classes, activation='softmax'))
-
-    else:
-        model.add(Dense(num_classes, activation="sigmoid"))
-
-    model.compile(
-        loss='categorical_crossentropy',
-        optimizer=Adam(learning_rate=0.005),
-        metrics=['accuracy']
-    )
+    inputs = keras.Input(shape=(None,), dtype="int32")
+    # Embed each integer in a 128-dimensional vector
+    model.add(inputs)
+    model.add(Embedding(50000, 128))
+    # Add 2 bidirectional LSTMs
+    model.add(Bidirectional(LSTM(64, return_sequences=True)))
+    model.add(Bidirectional(LSTM(64)))
+    # Add a classifier
+    model.add(Dense(5, activation="sigmoid"))
+    # model = keras.Model(inputs, outputs)
     model.summary()
 
-    callbacks = []
-    early_stop = False
-    if early_stop:
-        callbacks.append(EarlyStopping(min_delta=0.001, mode='max', monitor='val_accuracy', patience=2))
+    model.compile("adam", "sparse_categorical_crossentropy", metrics=["accuracy"])
+    # TODO: the visualization shows that validation loss keeps decreasing from epoch 1 to 5, try training with more epochs
+    model_history = model.fit(x_train, y_train, batch_size=32, epochs=5, validation_data=(x_val, y_val))
 
-    history = model.fit(
-        X_train,
-        y_train,
-        validation_data=(X_val, y_val),
-        epochs=6,
-        batch_size=256,
-        verbose=1,
-        callbacks=callbacks
-    )
-
-    # Create count of the number of epochs
-    epoch_count = range(1, len(history.history['loss']) + 1)
-
-    # Visualize learning curve. Here learning curve is not ideal. It should be much smoother as it decreases.
-    # As mentioned before, altering different hyper parameters especially learning rate can have a positive impact
-    # on accuracy and learning curve.
-    plt.plot(epoch_count, history.history['loss'], 'r--')
-    plt.plot(epoch_count, history.history['val_loss'], 'b-')
+    # Visualize loss/accuracy over each epoch
+    epoch_count = range(1, len(model_history.history['loss']) + 1)
+    plt.plot(epoch_count, model_history.history['loss'], 'r--')
+    plt.plot(epoch_count, model_history.history['val_loss'], 'b-')
     plt.legend(['Training Loss', 'Validation Loss'])
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
@@ -135,12 +121,9 @@ if __name__ == "__main__":
     # TODO: comment out the saving for now just to test new models out
     save_model = False
     if save_model:
-        tokenizer_json = tokenizer.to_json()
-        with open(os.path.join("trained_model", "tokenizer"), 'w', encoding='utf-8') as f:
-            f.write(json.dumps(tokenizer_json, ensure_ascii=False))
-
         values_to_save = {
-            "len_max": len_max
+            "max_len": MAX_LEN,
+            "vocab_size": VOCAB_SIZE
         }
         with open(os.path.join("trained_model", "values"), 'wb') as f:
             pickle.dump(values_to_save, f, protocol=pickle.HIGHEST_PROTOCOL)
