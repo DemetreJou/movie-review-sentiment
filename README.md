@@ -1,5 +1,8 @@
 # A simple react + flask project
 
+## Dataset
+Download from here 
+https://www.kaggle.com/c/sentiment-analysis-on-movie-reviews/data
 
 ## Setup
 This is run dockerized for easy production deployment(also because I wanted docker practice)
