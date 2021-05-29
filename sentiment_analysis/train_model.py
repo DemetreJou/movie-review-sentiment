@@ -1,25 +1,21 @@
 import json
-import pickle
-
-import pandas as pd
 import os
-
-from nltk.tokenize import word_tokenize
-from tqdm import tqdm
-
+import pickle
 import re
 
-from tensorflow.keras.utils import to_categorical
-from sklearn.model_selection import train_test_split
+import pandas as pd
+from bs4 import BeautifulSoup
+from keras.callbacks import EarlyStopping
+from keras.layers import Dense, Dropout, Embedding, LSTM
+from keras.models import Sequential
+from keras.optimizers import Adam
 from keras.preprocessing import sequence
 from keras.preprocessing.text import Tokenizer
-from keras.layers import Dense, Dropout, Embedding, LSTM
-from keras.callbacks import EarlyStopping
-from keras.losses import categorical_crossentropy
-from bs4 import BeautifulSoup
-from keras.optimizers import Adam
-from keras.models import Sequential
 from nltk.stem import WordNetLemmatizer
+from nltk.tokenize import word_tokenize
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import to_categorical
+from tqdm import tqdm
 
 lemmatizer = WordNetLemmatizer()
 import matplotlib.pyplot as plt
@@ -27,11 +23,6 @@ import spacy
 
 nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
 nlp.add_pipe('sentencizer')
-
-from multiprocessing.dummy import Pool
-from multiprocessing import cpu_count
-
-pool = Pool(cpu_count())
 
 
 def clean_sentence(sentence):
@@ -113,6 +104,11 @@ if __name__ == "__main__":
     )
     model.summary()
 
+    callbacks = []
+    early_stop = False
+    if early_stop:
+        callbacks.append(EarlyStopping(min_delta=0.001, mode='max', monitor='val_accuracy', patience=2))
+
     history = model.fit(
         X_train,
         y_train,
@@ -120,7 +116,7 @@ if __name__ == "__main__":
         epochs=6,
         batch_size=256,
         verbose=1,
-        callbacks=[EarlyStopping(min_delta=0.001, mode='max', monitor='val_accuracy', patience=2)]
+        callbacks=callbacks
     )
 
     # Create count of the number of epochs
