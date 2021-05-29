@@ -4,3 +4,4 @@
 .DS_STORE
 **/node_modules
 sentiment_analysis/trained_model
+**.npz
