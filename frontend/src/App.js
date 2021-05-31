@@ -17,7 +17,7 @@ import myComponent from "./Pages/api_call"
 //   );
 // }
 
-
+// TODO: remove all the unsude code
 function App() {
   const [currentTime, setCurrentTime] = useState(0);
 
