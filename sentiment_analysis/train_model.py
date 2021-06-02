@@ -20,15 +20,9 @@ lemmatizer = WordNetLemmatizer()
 import matplotlib.pyplot as plt
 import spacy
 
-# TODO: refactor this into a class called "Main"
-# encapsulate loading, saving, text preprocessing
-# easier to train on different hyper params
-# allow easier time calling this as an API to predict new sentence
 
 nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
 nlp.add_pipe('sentencizer')
-VOCAB_SIZE = 50000
-MAX_LEN = 200
 
 
 # not sure if this is needed or if a dict is better
@@ -40,130 +34,158 @@ class sentiment(IntEnum):
     POSITIVE = 4
 
 
-def load_model():
-    return keras.models.load_model(os.path.join("trained_model", "keras_model"))
+class SentimentModel:
+    save_base_path: str
+    data_base_path: str
+    VOCAB_SIZE: int
+    MAX_LEN: int
 
+    # TODO: add these type hints
+    # model: tf.keras.Model
+    # model_history:
 
-def save_model(model):
-    values_to_save = {
-        "max_len": MAX_LEN,
-        "vocab_size": VOCAB_SIZE
-    }
-    with open(os.path.join("trained_model", "values"), 'wb') as f:
-        pickle.dump(values_to_save, f, protocol=pickle.HIGHEST_PROTOCOL)
+    def __init__(
+            self,
+            *,
+            vocab_size: int = 50000,
+            max_len: int = 200,
+            save_base_path: str = "trained_model",
+            data_base_path: str = "data",
+            load_pretrained: bool = False
 
-    model.save(os.path.join("trained_model", "keras_model"))
+    ):
+        self.VOCAB_SIZE = vocab_size
+        self.MAX_LEN = max_len
+        self.save_base_path = save_base_path
+        self.data_base_path = data_base_path
 
+        # Not sure if the "else" case is required here
+        if load_pretrained:
+            self.model = self.load_model()
+        else:
+            self.model = None
+        self.model_history = None
 
-def get_sentiment(sentence: str) -> sentiment:
-    # TODO: when refactoring this into a class make sure load_model only happens once
-    # huge bottleneck step with having to also fully load CUDA as well
-    model = load_model()
-    sentence = clean_sentence(sentence)
-    sentence = [one_hot(d, VOCAB_SIZE) for d in sentence]
-    sentence = keras.preprocessing.sequence.pad_sequences([sentence], maxlen=MAX_LEN)
-    prediction = np.argmax(model.predict(sentence), axis=-1)
-    return sentiment(prediction)
+    def load_model(self):
+        return keras.models.load_model(os.path.join(self.save_base_path, "keras_model"))
 
+    def save_model(self):
+        values_to_save = {
+            "max_len": self.MAX_LEN,
+            "vocab_size": self.VOCAB_SIZE
+        }
+        with open(os.path.join(self.save_base_path, "values"), 'wb') as f:
+            pickle.dump(values_to_save, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-def clean_sentence(sentence):
-    review_text = BeautifulSoup(sentence, features="html.parser").get_text()
+        self.model.save(os.path.join(self.save_base_path, "keras_model"))
 
-    # remove non-alphabetic characters
-    review_text = re.sub("[^a-zA-Z]", " ", review_text)
+    def get_sentiment(self, sentence: str) -> sentiment:
+        if self.model is None:
+            raise Exception("Model does not exist. Try loading a previously saved model or training this model")
+        sentence = self.clean_sentence(sentence)
+        sentence = [one_hot(d, self.VOCAB_SIZE) for d in sentence]
+        sentence = keras.preprocessing.sequence.pad_sequences([sentence], maxlen=self.MAX_LEN)
+        prediction = np.argmax(self.model.predict(sentence), axis=-1)
+        return sentiment(prediction)
 
-    # tokenize the sentences
-    words = word_tokenize(review_text.lower())
+    def clean_sentence(self, sentence):
+        review_text = BeautifulSoup(sentence, features="html.parser").get_text()
 
-    # lemmatize each word to its lemma
-    lemma_words = [lemmatizer.lemmatize(i) for i in words]
-    return lemma_words
+        # remove non-alphabetic characters
+        review_text = re.sub("[^a-zA-Z]", " ", review_text)
 
+        # tokenize the sentences
+        words = word_tokenize(review_text.lower())
 
-def clean_sentences(df):
-    reviews = []
-    for sent in tqdm(df['Phrase']):
-        reviews.append(clean_sentence(sent))
+        # lemmatize each word to its lemma
+        return ' '.join([lemmatizer.lemmatize(i) for i in words])
 
-    return reviews
+    def clean_sentences(self, df):
+        reviews = []
+        for sent in tqdm(df['Phrase']):
+            reviews.append(self.clean_sentence(sent))
 
+        return reviews
 
-def text_cleaning(text):
-    forbidden_words = set(stopwords.words('english'))
-    if text:
-        text = ' '.join(text.split('.'))
-        text = re.sub('\/', ' ', text)
-        text = re.sub(r'\\', ' ', text)
-        text = re.sub(r'((http)\S+)', '', text)
-        text = re.sub(r'\s+', ' ', re.sub('[^A-Za-z]', ' ', text.strip().lower())).strip()
-        text = re.sub(r'\W+', ' ', text.strip().lower()).strip()
-        text = [word for word in text.split() if word not in forbidden_words]
-        return text
-    return []
+    def text_cleaning(self, text):
+        forbidden_words = set(stopwords.words('english'))
+        if text:
+            text = ' '.join(text.split('.'))
+            text = re.sub('\/', ' ', text)
+            text = re.sub(r'\\', ' ', text)
+            text = re.sub(r'((http)\S+)', '', text)
+            text = re.sub(r'\s+', ' ', re.sub('[^A-Za-z]', ' ', text.strip().lower())).strip()
+            text = re.sub(r'\W+', ' ', text.strip().lower()).strip()
+            text = [word for word in text.split() if word not in forbidden_words]
+            return text
+        return []
 
+    def preprocess_list(self, lst):
+        lst = list(map(self.clean_sentence, lst))
+        lst = [one_hot(x, self.VOCAB_SIZE) for x in lst]
+        lst = keras.preprocessing.sequence.pad_sequences(lst, maxlen=self.MAX_LEN)
+        return lst
 
-def load_and_process():
-    train_data = pd.read_csv(os.path.join("data", "train.tsv"), sep='\t')
-    test_data = pd.read_csv(os.path.join("data", "test.tsv"), sep='\t')
+    def load_and_preprocess(self):
+        train_data = pd.read_csv(os.path.join("data", "train.tsv"), sep='\t')
+        test_data = pd.read_csv(os.path.join("data", "test.tsv"), sep='\t')
 
-    train_data = train_data.drop(['PhraseId', 'SentenceId'], axis=1)
-    test_data = test_data.drop(['PhraseId', 'SentenceId'], axis=1)
-    train_data['flag'] = 'TRAIN'
-    test_data['flag'] = 'TEST'
-    total_docs = pd.concat([train_data, test_data], axis=0, ignore_index=True)
-    # total_docs['Phrase'] = total_docs['Phrase'].apply(lambda x: ' '.join(text_cleaning(x)))
-    # TODO: extract out the cleaning + embedding logic to use in the get_sentiment function
-    total_docs['Phrase'] = total_docs['Phrase'].apply(lambda x: ' '.join(clean_sentence(x)))
-    phrases = total_docs['Phrase'].tolist()
-    encoded_phrases = [one_hot(d, VOCAB_SIZE) for d in phrases]
-    total_docs['Phrase'] = encoded_phrases
-    train_data = total_docs[total_docs['flag'] == 'TRAIN']
-    test_data = total_docs[total_docs['flag'] == 'TEST']
-    x_train = train_data['Phrase']
-    y_train = train_data['Sentiment']
-    x_val = test_data['Phrase']
-    y_val = test_data['Sentiment']
+        train_data = train_data.drop(['PhraseId', 'SentenceId'], axis=1)
+        test_data = test_data.drop(['PhraseId', 'SentenceId'], axis=1)
+        # TODO: refactor out this total_docs stuff, just preprocess train, test seperately
+        # train_data['flag'] = 'TRAIN'
+        # test_data['flag'] = 'TEST'
+        # total_docs = pd.concat([train_data, test_data], axis=0, ignore_index=True)
+        # total_docs['Phrase'] = self.preprocess_list(total_docs['Phrase'].tolist())
+        # train_data = total_docs[total_docs['flag'] == 'TRAIN']
+        # test_data = total_docs[total_docs['flag'] == 'TEST']
+        # x_train = train_data['Phrase']
+        # y_train = train_data['Sentiment']
+        # x_val = test_data['Phrase']
+        # y_val = test_data['Sentiment']
+        x_train = self.preprocess_list(train_data['Phrase'].tolist())
+        y_train = train_data['Sentiment']
+        x_val = self.preprocess_list(test_data['Phrase'].tolist())
+        y_val = test_data['Sentiment']
 
-    x_train = keras.preprocessing.sequence.pad_sequences(x_train, maxlen=MAX_LEN)
-    x_val = keras.preprocessing.sequence.pad_sequences(x_val, maxlen=MAX_LEN)
-    return x_train, x_val, y_train, y_val
+        return x_train, x_val, y_train, y_val
 
+    def generate_model(self):
+        model = Sequential()
+        inputs = keras.Input(shape=(None,), dtype="int32")
+        # Embed each integer in a 128-dimensional vector
+        model.add(inputs)
+        model.add(Embedding(50000, 128))
+        # Add 2 bidirectional LSTMs
+        model.add(Bidirectional(LSTM(64, return_sequences=True)))
+        model.add(Bidirectional(LSTM(64)))
+        # Add a classifier
+        model.add(Dense(5, activation="sigmoid"))
+        model.compile("adam", "sparse_categorical_crossentropy", metrics=["accuracy"])
+        return model
 
-def train_model(x_train, x_val, y_train, y_val):
-    model = Sequential()
-    inputs = keras.Input(shape=(None,), dtype="int32")
-    # Embed each integer in a 128-dimensional vector
-    model.add(inputs)
-    model.add(Embedding(50000, 128))
-    # Add 2 bidirectional LSTMs
-    model.add(Bidirectional(LSTM(64, return_sequences=True)))
-    model.add(Bidirectional(LSTM(64)))
-    # Add a classifier
-    model.add(Dense(5, activation="sigmoid"))
-    # model = keras.Model(inputs, outputs)
-    model.summary()
+    def train_model(self):
+        self.model = self.generate_model()
+        x_train, x_val, y_train, y_val = self.load_and_preprocess()
+        self.model_history = self.model.fit(x_train, y_train, batch_size=32, epochs=2, validation_data=(x_val, y_val))
 
-    model.compile("adam", "sparse_categorical_crossentropy", metrics=["accuracy"])
-    model_history = model.fit(x_train, y_train, batch_size=32, epochs=2, validation_data=(x_val, y_val))
-
-    return model, model_history
-
-
-def visualize_loss(model_history):
-    epoch_count = range(1, len(model_history.history['loss']) + 1)
-    plt.plot(epoch_count, model_history.history['loss'], 'r--')
-    plt.plot(epoch_count, model_history.history['val_loss'], 'b-')
-    plt.legend(['Training Loss', 'Validation Loss'])
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.show()
+    def visualize_loss(self):
+        if self.model_history is None:
+            raise Exception("No model history found. Must train model")
+        epoch_count = range(1, len(self.model_history.history['loss']) + 1)
+        plt.plot(epoch_count, self.model_history.history['loss'], 'r--')
+        plt.plot(epoch_count, self.model_history.history['val_loss'], 'b-')
+        plt.legend(['Training Loss', 'Validation Loss'])
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.show()
 
 
 if __name__ == "__main__":
     # DISABLES CUDA
     # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-    x_train, x_val, y_train, y_val = load_and_process()
-    model, model_history = train_model(x_train, x_val, y_train, y_val)
-    visualize_loss(model_history)
-    save_model(model)
+    model = SentimentModel()
+    model.train_model()
+    model.visualize_loss()
+    model.save_model()
