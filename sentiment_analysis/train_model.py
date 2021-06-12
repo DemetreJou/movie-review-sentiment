@@ -2,6 +2,7 @@ import os
 import pickle
 import re
 from enum import IntEnum
+from typing import List
 
 import keras
 import numpy as np
@@ -14,12 +15,10 @@ from keras.preprocessing.text import one_hot
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
-from tqdm import tqdm
 
 lemmatizer = WordNetLemmatizer()
 import matplotlib.pyplot as plt
 import spacy
-
 
 nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
 nlp.add_pipe('sentencizer')
@@ -82,13 +81,11 @@ class SentimentModel:
     def get_sentiment(self, sentence: str) -> sentiment:
         if self.model is None:
             raise Exception("Model does not exist. Try loading a previously saved model or training this model")
-        sentence = self.clean_sentence(sentence)
-        sentence = [one_hot(d, self.VOCAB_SIZE) for d in sentence]
-        sentence = keras.preprocessing.sequence.pad_sequences([sentence], maxlen=self.MAX_LEN)
+        sentence = self.preprocess_list([sentence])
         prediction = np.argmax(self.model.predict(sentence), axis=-1)
         return sentiment(prediction)
 
-    def clean_sentence(self, sentence):
+    def clean_sentence(self, sentence: str):
         review_text = BeautifulSoup(sentence, features="html.parser").get_text()
 
         # remove non-alphabetic characters
@@ -99,13 +96,6 @@ class SentimentModel:
 
         # lemmatize each word to its lemma
         return ' '.join([lemmatizer.lemmatize(i) for i in words])
-
-    def clean_sentences(self, df):
-        reviews = []
-        for sent in tqdm(df['Phrase']):
-            reviews.append(self.clean_sentence(sent))
-
-        return reviews
 
     def text_cleaning(self, text):
         forbidden_words = set(stopwords.words('english'))
@@ -120,7 +110,7 @@ class SentimentModel:
             return text
         return []
 
-    def preprocess_list(self, lst):
+    def preprocess_list(self, lst: List[str]):
         lst = list(map(self.clean_sentence, lst))
         lst = [one_hot(x, self.VOCAB_SIZE) for x in lst]
         lst = keras.preprocessing.sequence.pad_sequences(lst, maxlen=self.MAX_LEN)
@@ -132,20 +122,10 @@ class SentimentModel:
 
         train_data = train_data.drop(['PhraseId', 'SentenceId'], axis=1)
         test_data = test_data.drop(['PhraseId', 'SentenceId'], axis=1)
-        # TODO: refactor out this total_docs stuff, just preprocess train, test seperately
-        # train_data['flag'] = 'TRAIN'
-        # test_data['flag'] = 'TEST'
-        # total_docs = pd.concat([train_data, test_data], axis=0, ignore_index=True)
-        # total_docs['Phrase'] = self.preprocess_list(total_docs['Phrase'].tolist())
-        # train_data = total_docs[total_docs['flag'] == 'TRAIN']
-        # test_data = total_docs[total_docs['flag'] == 'TEST']
-        # x_train = train_data['Phrase']
-        # y_train = train_data['Sentiment']
-        # x_val = test_data['Phrase']
-        # y_val = test_data['Sentiment']
         x_train = self.preprocess_list(train_data['Phrase'].tolist())
         y_train = train_data['Sentiment']
         x_val = self.preprocess_list(test_data['Phrase'].tolist())
+        test_data['Sentiment'] = np.NaN
         y_val = test_data['Sentiment']
 
         return x_train, x_val, y_train, y_val
@@ -167,7 +147,7 @@ class SentimentModel:
     def train_model(self):
         self.model = self.generate_model()
         x_train, x_val, y_train, y_val = self.load_and_preprocess()
-        self.model_history = self.model.fit(x_train, y_train, batch_size=32, epochs=2, validation_data=(x_val, y_val))
+        self.model_history = self.model.fit(x_train, y_train, batch_size=32, epochs=10, validation_data=(x_val, y_val))
 
     def visualize_loss(self):
         if self.model_history is None:
