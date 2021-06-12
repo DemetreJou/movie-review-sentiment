@@ -15,6 +15,7 @@ from keras.preprocessing.text import one_hot
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
+from sklearn.model_selection import train_test_split
 
 lemmatizer = WordNetLemmatizer()
 import matplotlib.pyplot as plt
@@ -116,17 +117,12 @@ class SentimentModel:
         lst = keras.preprocessing.sequence.pad_sequences(lst, maxlen=self.MAX_LEN)
         return lst
 
-    def load_and_preprocess(self):
+    def load_and_preprocess_train_data(self):
         train_data = pd.read_csv(os.path.join("data", "train.tsv"), sep='\t')
-        test_data = pd.read_csv(os.path.join("data", "test.tsv"), sep='\t')
-
         train_data = train_data.drop(['PhraseId', 'SentenceId'], axis=1)
-        test_data = test_data.drop(['PhraseId', 'SentenceId'], axis=1)
         x_train = self.preprocess_list(train_data['Phrase'].tolist())
         y_train = train_data['Sentiment']
-        x_val = self.preprocess_list(test_data['Phrase'].tolist())
-        test_data['Sentiment'] = np.NaN
-        y_val = test_data['Sentiment']
+        x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, stratify=y_train)
 
         return x_train, x_val, y_train, y_val
 
@@ -146,7 +142,7 @@ class SentimentModel:
 
     def train_model(self):
         self.model = self.generate_model()
-        x_train, x_val, y_train, y_val = self.load_and_preprocess()
+        x_train, x_val, y_train, y_val = self.load_and_preprocess_train_data()
         self.model_history = self.model.fit(x_train, y_train, batch_size=32, epochs=10, validation_data=(x_val, y_val))
 
     def visualize_loss(self):
@@ -160,12 +156,36 @@ class SentimentModel:
         plt.ylabel('Loss')
         plt.show()
 
+    def make_predictions(self):
+        """
+        Loads test file
+        Preprocess through usual pipeline
+        Predict classes
+        Save to file in format ready to submit to kaggle
+        """
+        test_data = pd.read_csv(os.path.join("data", "test.tsv"), sep='\t')
+        x_test = self.preprocess_list(test_data['Phrase'].tolist())
+        predictions = np.argmax(self.model.predict(x_test), axis=-1)
+        predictions = pd.Series(predictions)
+        submission = test_data['PhraseId']
+        submission = submission.to_frame()
+        submission['Sentiment'] = predictions
+
+        # drop index column before saving
+        submission.to_csv(os.path.join("data", "submission.csv"), index=False)
+
 
 if __name__ == "__main__":
     # DISABLES CUDA
     # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    train_model = False
 
-    model = SentimentModel()
-    model.train_model()
-    model.visualize_loss()
-    model.save_model()
+    if train_model:
+        model = SentimentModel()
+        model.train_model()
+        model.visualize_loss()
+        model.save_model()
+
+    else:
+        model = SentimentModel(load_pretrained=True)
+        model.make_predictions()
