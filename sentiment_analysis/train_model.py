@@ -4,14 +4,17 @@ import re
 from enum import IntEnum
 from typing import List
 
-import keras
+import tensorflow.keras as keras
 import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
-from keras.layers import Dense, Embedding, LSTM, Bidirectional
-from keras.models import Sequential
-from keras.preprocessing import sequence
-from keras.preprocessing.text import one_hot
+from tensorflow.keras.layers import Dense, Embedding, LSTM, Bidirectional
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.preprocessing import sequence
+from tensorflow.keras.preprocessing.text import one_hot
+import nltk
+nltk.download('punkt')
+nltk.download('wordnet')
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
@@ -67,7 +70,7 @@ class SentimentModel:
         self.model_history = None
 
     def load_model(self):
-        return keras.models.load_model(os.path.join(self.save_base_path, "keras_model"))
+        return keras.models.load_model(os.path.join('.', 'sentiment_analysis', self.save_base_path, "keras_model"))
 
     def save_model(self):
         values_to_save = {
@@ -77,7 +80,7 @@ class SentimentModel:
         with open(os.path.join(self.save_base_path, "values"), 'wb') as f:
             pickle.dump(values_to_save, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-        self.model.save(os.path.join(self.save_base_path, "keras_model"))
+        self.model.save(os.path.join('.','sentiment_analysis', self.save_base_path, "keras_model"))
 
     def get_sentiment(self, sentence: str) -> sentiment:
         if self.model is None:
@@ -143,7 +146,7 @@ class SentimentModel:
     def train_model(self):
         self.model = self.generate_model()
         x_train, x_val, y_train, y_val = self.load_and_preprocess_train_data()
-        self.model_history = self.model.fit(x_train, y_train, batch_size=32, epochs=10, validation_data=(x_val, y_val))
+        self.model_history = self.model.fit(x_train, y_train, batch_size=32, epochs=3, validation_data=(x_val, y_val))
 
     def visualize_loss(self):
         if self.model_history is None:
@@ -178,7 +181,7 @@ class SentimentModel:
 if __name__ == "__main__":
     # DISABLES CUDA
     # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-    train_model = False
+    train_model = True
 
     if train_model:
         model = SentimentModel()

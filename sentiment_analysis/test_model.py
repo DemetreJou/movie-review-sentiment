@@ -1,4 +1,4 @@
-from sentiment_analysis.train_model import get_sentiment
+from sentiment_analysis.train_model import SentimentModel
 
 if __name__ == "__main__":
     phrases = [
@@ -7,5 +7,6 @@ if __name__ == "__main__":
         "Must see summer blockbuster",
         "A comedy-drama of nearly epic proportions rooted in a sincere performance by the title character undergoing midlife crisis"
     ]
+    model = SentimentModel(load_pretrained=True)
     for phrase in phrases:
-        print(get_sentiment(phrase))
+        print(model.get_sentiment(phrase))

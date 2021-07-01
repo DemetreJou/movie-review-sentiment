@@ -1,17 +1,17 @@
-FROM ubuntu:20.10
+FROM python:3.9.6
 
-RUN apt-get update -y
-RUN apt-get install python3.8 python3-pip -y
 
 COPY backend/requirements.txt /app/requirements.txt
 
 WORKDIR /app
 
-RUN pip3 install -r requirements.txt
+RUN pip install -r requirements.txt
 
-COPY ./backend /app
-COPY ./sentiment_analysis/trained_model /app/trained_model
+COPY ./backend /app/backend
+COPY ./sentiment_analysis/  /app/sentiment_analysis
 
-ENTRYPOINT [ "python3" ]
+ENV PYTHONPATH "${PYTHONPATH}:/app/backend:/app/sentiment_analysis"
 
-CMD [ "wsgi.py" ]
+ENTRYPOINT [ "python" ]
+
+CMD [ "backend/wsgi.py" ]
