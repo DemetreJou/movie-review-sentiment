@@ -2,7 +2,7 @@ from flask_cors import cross_origin
 from . import routes
 
 
-# endpoint to help with testing backend is running without relying on the model being loaded correctly
+# endpoint to help with testing backend is running without relying on the sentinment_model being loaded correctly
 @routes.route('/')
 @cross_origin()
 def get_homepage():

@@ -1,0 +1,12 @@
+[MASTER]
+
+[MESSAGES CONTROL]
+disable=print-statement,
+        missing-function-docstring,
+        missing-module-docstring,
+        missing-class-docstring,
+        fixme,
+        cyclic-import
+
+[FORMAT]
+max-line-length=150

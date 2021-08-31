@@ -1,35 +1,37 @@
+# issues with lazy loading causing false positives
+# pylint: disable=no-name-in-module
 import os
 import pickle
 import re
 from enum import IntEnum
 from typing import List
 
-import tensorflow.keras as keras
+import matplotlib.pyplot as plt
+import nltk
 import numpy as np
 import pandas as pd
+import spacy
+import tensorflow.keras as keras
 from bs4 import BeautifulSoup
-from tensorflow.keras.layers import Dense, Embedding, LSTM, Bidirectional
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.preprocessing import sequence
-from tensorflow.keras.preprocessing.text import one_hot
-import nltk
-nltk.download('punkt')
-nltk.download('wordnet')
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 from sklearn.model_selection import train_test_split
+from tensorflow.keras.layers import Dense, Embedding, LSTM, Bidirectional
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.preprocessing.text import one_hot
+
+nltk.download('punkt')
+nltk.download('wordnet')
 
 lemmatizer = WordNetLemmatizer()
-import matplotlib.pyplot as plt
-import spacy
 
 nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
 nlp.add_pipe('sentencizer')
 
 
 # not sure if this is needed or if a dict is better
-class sentiment(IntEnum):
+class Sentiment(IntEnum):
     NEGATIVE = 0
     SOMEWHAT_NEGATIVE = 1
     NEUTRAL = 2
@@ -44,7 +46,7 @@ class SentimentModel:
     MAX_LEN: int
 
     # TODO: add these type hints
-    # model: tf.keras.Model
+    # sentinment_model: tf.keras.Model
     # model_history:
 
     def __init__(
@@ -57,6 +59,8 @@ class SentimentModel:
             load_pretrained: bool = False
 
     ):
+        # issues with these constants
+        # pylint: disable=invalid-name
         self.VOCAB_SIZE = vocab_size
         self.MAX_LEN = max_len
         self.save_base_path = save_base_path
@@ -77,19 +81,20 @@ class SentimentModel:
             "max_len": self.MAX_LEN,
             "vocab_size": self.VOCAB_SIZE
         }
-        with open(os.path.join(self.save_base_path, "values"), 'wb') as f:
-            pickle.dump(values_to_save, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(os.path.join(self.save_base_path, "values"), 'wb') as file:
+            pickle.dump(values_to_save, file, protocol=pickle.HIGHEST_PROTOCOL)
 
-        self.model.save(os.path.join('.','sentiment_analysis', self.save_base_path, "keras_model"))
+        self.model.save(os.path.join('.', 'sentiment_analysis', self.save_base_path, "keras_model"))
 
-    def get_sentiment(self, sentence: str) -> sentiment:
+    def get_sentiment(self, sentence: str) -> Sentiment:
         if self.model is None:
-            raise Exception("Model does not exist. Try loading a previously saved model or training this model")
-        sentence = self.preprocess_list([sentence])
+            raise Exception("Model does not exist. Try loading a previously saved sentinment_model or training this sentinment_model")
+        sentence = self._preprocess_list([sentence])
         prediction = np.argmax(self.model.predict(sentence), axis=-1)
-        return sentiment(prediction)
+        return Sentiment(prediction)
 
-    def clean_sentence(self, sentence: str):
+    @staticmethod
+    def _clean_sentence(sentence: str):
         review_text = BeautifulSoup(sentence, features="html.parser").get_text()
 
         # remove non-alphabetic characters
@@ -101,11 +106,12 @@ class SentimentModel:
         # lemmatize each word to its lemma
         return ' '.join([lemmatizer.lemmatize(i) for i in words])
 
-    def text_cleaning(self, text):
+    @staticmethod
+    def text_cleaning(text):
         forbidden_words = set(stopwords.words('english'))
         if text:
             text = ' '.join(text.split('.'))
-            text = re.sub('\/', ' ', text)
+            text = re.sub(r'\/', ' ', text)
             text = re.sub(r'\\', ' ', text)
             text = re.sub(r'((http)\S+)', '', text)
             text = re.sub(r'\s+', ' ', re.sub('[^A-Za-z]', ' ', text.strip().lower())).strip()
@@ -114,8 +120,8 @@ class SentimentModel:
             return text
         return []
 
-    def preprocess_list(self, lst: List[str]):
-        lst = list(map(self.clean_sentence, lst))
+    def _preprocess_list(self, lst: List[str]):
+        lst = list(map(self._clean_sentence, lst))
         lst = [one_hot(x, self.VOCAB_SIZE) for x in lst]
         lst = keras.preprocessing.sequence.pad_sequences(lst, maxlen=self.MAX_LEN)
         return lst
@@ -123,13 +129,14 @@ class SentimentModel:
     def load_and_preprocess_train_data(self):
         train_data = pd.read_csv(os.path.join("data", "train.tsv"), sep='\t')
         train_data = train_data.drop(['PhraseId', 'SentenceId'], axis=1)
-        x_train = self.preprocess_list(train_data['Phrase'].tolist())
+        x_train = self._preprocess_list(train_data['Phrase'].tolist())
         y_train = train_data['Sentiment']
         x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, stratify=y_train)
 
         return x_train, x_val, y_train, y_val
 
-    def generate_model(self):
+    @staticmethod
+    def generate_model():
         model = Sequential()
         inputs = keras.Input(shape=(None,), dtype="int32")
         # Embed each integer in a 128-dimensional vector
@@ -150,7 +157,7 @@ class SentimentModel:
 
     def visualize_loss(self):
         if self.model_history is None:
-            raise Exception("No model history found. Must train model")
+            raise Exception("No sentinment_model history found. Must train sentinment_model")
         epoch_count = range(1, len(self.model_history.history['loss']) + 1)
         plt.plot(epoch_count, self.model_history.history['loss'], 'r--')
         plt.plot(epoch_count, self.model_history.history['val_loss'], 'b-')
@@ -167,7 +174,7 @@ class SentimentModel:
         Save to file in format ready to submit to kaggle
         """
         test_data = pd.read_csv(os.path.join("data", "test.tsv"), sep='\t')
-        x_test = self.preprocess_list(test_data['Phrase'].tolist())
+        x_test = self._preprocess_list(test_data['Phrase'].tolist())
         predictions = np.argmax(self.model.predict(x_test), axis=-1)
         predictions = pd.Series(predictions)
         submission = test_data['PhraseId']
@@ -181,14 +188,14 @@ class SentimentModel:
 if __name__ == "__main__":
     # DISABLES CUDA
     # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-    train_model = True
+    TRAIN_MODEL = True
 
-    if train_model:
-        model = SentimentModel()
-        model.train_model()
-        model.visualize_loss()
-        model.save_model()
+    if TRAIN_MODEL:
+        sentinment_model = SentimentModel()
+        sentinment_model.train_model()
+        sentinment_model.visualize_loss()
+        sentinment_model.save_model()
 
     else:
-        model = SentimentModel(load_pretrained=True)
-        model.make_predictions()
+        sentinment_model = SentimentModel(load_pretrained=True)
+        sentinment_model.make_predictions()
