@@ -1,4 +1,4 @@
-from sentiment_analysis.train_model import SentimentModel
+from sentiment_analysis.pipeline.train_model import SentimentModel
 
 if __name__ == "__main__":
     phrases = [

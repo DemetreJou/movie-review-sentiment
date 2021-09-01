@@ -1,0 +1,1 @@
+Super minimal web app that serves the model predictions

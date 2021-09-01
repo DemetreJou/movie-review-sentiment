@@ -2,9 +2,6 @@ from flask import Flask
 
 # pylint: disable=unused-wildcard-import, unused-import, wildcard-import
 from routes import *
-from sentiment_analysis.train_model import SentimentModel
-
-model = SentimentModel(load_pretrained=True)
 
 app = Flask(__name__)
 app.register_blueprint(routes)
