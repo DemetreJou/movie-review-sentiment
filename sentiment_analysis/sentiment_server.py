@@ -14,6 +14,11 @@ def get_sentiment():
     return jsonify(sentiment)
 
 
+@app.route('/api/v1/', methods=['GET'])
+def get_homepage():
+    return "Hello World!"
+
+
 # run this for dev
 if __name__ == '__main__':
     app.run(use_reloader=False, port=5100, threaded=True)

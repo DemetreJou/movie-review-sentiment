@@ -38,4 +38,6 @@ def request_client_generator(base_url: str = "") -> requests.Session:
     retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
     http.mount("https://", TimeoutHTTPAdapter(max_retries=retries))
 
+    # TODO: add logging logic
+
     return http
