@@ -4,9 +4,10 @@ from flask_cors import cross_origin
 from . import routes
 from requests_toolbelt import sessions
 from utils.network_request import request_client_generator
+from server import SETTINGS
 
 # TODO: set this base url based on .env file or similar
-request_instance = request_client_generator(base_url="http://sentiment_analysis:5100/api/v1/")
+request_instance = request_client_generator(base_url=f"http://{SETTINGS['SENTIMENT_ANALYSIS_URL']}:5100/api/v1/")
 
 @routes.route('/api/v1/get_sentiment', methods=['GET'])
 @cross_origin()
