@@ -1,7 +1,7 @@
 **/venv
+**/env
 **/__pycache__
 **/.idea
 .DS_STORE
-**/node_modules
-sentiment_analysis/trained_model
+sentiment_analysis/pipeline/trained_model
 **.npz
