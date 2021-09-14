@@ -1,13 +1,17 @@
-from flask import request, jsonify
+from flask import jsonify, request
+import requests
 from flask_cors import cross_origin
-
-from backend.server import model
 from . import routes
+from requests_toolbelt import sessions
+from utils.network_request import request_client_generator
+from server import SETTINGS
 
+# TODO: set this base url based on .env file or similar
+request_instance = request_client_generator(base_url=f"http://{SETTINGS['SENTIMENT_ANALYSIS_URL']}:5100/api/v1/")
 
 @routes.route('/api/v1/get_sentiment', methods=['GET'])
 @cross_origin()
 def get_sentiment():
     phrase = request.args.get("phrase")
-    sentiment = model.get_sentiment(phrase).name
-    return jsonify(sentiment)
+    response = request_instance.get(f"get_sentiment?phrase={phrase}", timeout=10)
+    return response.text

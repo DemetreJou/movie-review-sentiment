@@ -1,0 +1,20 @@
+version: "3.9"
+# TODO: figure out a good way to switch between running the stack locally and the docker-compose,
+# probably some env file to set the base url from localhost to the docker network instead
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - PORT=${BACKEND_PORT}
+      - IN_DOCKER=TRUE
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+  sentiment_analysis:
+    build:
+      context: ./sentiment_analysis
+      dockerfile: Dockerfile
+    environment:
+      - PORT=${SENTIMENT_ANALYSIS_PORT}
+      - IN_DOCKER=TRUE
