@@ -42,7 +42,7 @@ opt-einsum==3.3.0
 packaging==20.9
 pandas==1.2.4
 pathy==0.5.2
-Pillow==8.3.2
+Pillow==9.0.1
 preshed==3.0.5
 protobuf==3.17.0
 pyasn1==0.4.8
