@@ -74,7 +74,12 @@ class SentimentModel:
         self.model_history = None
 
     def load_model(self):
-        return keras.models.load_model(os.path.join('.', 'sentiment_analysis', self.save_base_path, "keras_model"))
+        import os
+        files = [f for f in os.listdir('.')]
+        for f in files:
+            print(f)
+
+        return keras.models.load_model(os.path.join("pipeline", self.save_base_path, "keras_model"))
 
     def save_model(self):
         values_to_save = {
@@ -84,7 +89,7 @@ class SentimentModel:
         with open(os.path.join(self.save_base_path, "values"), 'wb') as file:
             pickle.dump(values_to_save, file, protocol=pickle.HIGHEST_PROTOCOL)
 
-        self.model.save(os.path.join('.', 'sentiment_analysis', self.save_base_path, "keras_model"))
+        self.model.save(os.path.join("pipeline", self.save_base_path, "keras_model"))
 
     def get_sentiment(self, sentence: str) -> Sentiment:
         if self.model is None:
@@ -127,7 +132,7 @@ class SentimentModel:
         return lst
 
     def load_and_preprocess_train_data(self):
-        train_data = pd.read_csv(os.path.join("data", "train.tsv"), sep='\t')
+        train_data = pd.read_csv(os.path.join("../data", "train.tsv"), sep='\t')
         train_data = train_data.drop(['PhraseId', 'SentenceId'], axis=1)
         x_train = self._preprocess_list(train_data['Phrase'].tolist())
         y_train = train_data['Sentiment']
@@ -153,7 +158,7 @@ class SentimentModel:
     def train_model(self):
         self.model = self.generate_model()
         x_train, x_val, y_train, y_val = self.load_and_preprocess_train_data()
-        self.model_history = self.model.fit(x_train, y_train, batch_size=32, epochs=3, validation_data=(x_val, y_val))
+        self.model_history = self.model.fit(x_train, y_train, batch_size=32, epochs=1, validation_data=(x_val, y_val))
 
     def visualize_loss(self):
         if self.model_history is None:
@@ -173,7 +178,7 @@ class SentimentModel:
         Predict classes
         Save to file in format ready to submit to kaggle
         """
-        test_data = pd.read_csv(os.path.join("data", "test.tsv"), sep='\t')
+        test_data = pd.read_csv(os.path.join("../data", "test.tsv"), sep='\t')
         x_test = self._preprocess_list(test_data['Phrase'].tolist())
         predictions = np.argmax(self.model.predict(x_test), axis=-1)
         predictions = pd.Series(predictions)
@@ -182,7 +187,7 @@ class SentimentModel:
         submission['Sentiment'] = predictions
 
         # drop index column before saving
-        submission.to_csv(os.path.join("data", "submission.csv"), index=False)
+        submission.to_csv(os.path.join("../data", "submission.csv"), index=False)
 
 
 if __name__ == "__main__":

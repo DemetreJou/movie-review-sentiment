@@ -81,3 +81,4 @@ urllib3==1.26.5
 wasabi==0.8.2
 Werkzeug==2.0.0
 wrapt==1.12.1
+requests-toolbelt==0.9.1
